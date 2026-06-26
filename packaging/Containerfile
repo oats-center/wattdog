@@ -1,0 +1,18 @@
+FROM registry.fedoraproject.org/fedora:42
+
+ARG TARGET_TRIPLE=aarch64-unknown-linux-gnu
+ARG PROFILE=release
+RUN dnf --assumeyes install \
+        ca-certificates \
+        bluez-libs \
+        dbus-libs \
+        libstdc++ \
+    && dnf clean all
+
+COPY target/${TARGET_TRIPLE}/${PROFILE}/wattdog /usr/local/bin/wattdog
+
+VOLUME ["/var/lib/wattdog"]
+EXPOSE 9107
+
+ENTRYPOINT ["/usr/local/bin/wattdog"]
+CMD ["--config", "/etc/wattdog/config.toml"]

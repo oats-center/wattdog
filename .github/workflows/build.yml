@@ -1,0 +1,147 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  CARGO_TERM_COLOR: always
+  THORNWAVE_SDK_DIR: vendor/libpowermon_bin
+  THORNWAVE_SDK_REPO: https://git.thornwave.com/git/thornwave/libpowermon_bin.git
+
+jobs:
+  binaries:
+    name: Binary (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: linux-amd64
+            target: x86_64-unknown-linux-gnu
+            builder: cargo
+          - arch: linux-arm64-rpi64
+            target: aarch64-unknown-linux-gnu
+            builder: cross
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Restore Thornwave SDK
+        run: |
+          mkdir -p vendor
+          git clone --depth 1 "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          test -f vendor/libpowermon_bin/inc/powermon.h
+
+      - name: Install native build libraries
+        if: matrix.builder == 'cargo'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang g++ libbluetooth-dev libdbus-1-dev pkg-config
+
+      - name: Install QEMU
+        if: matrix.builder == 'cross'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Install cross
+        if: matrix.builder == 'cross'
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+
+      - name: Build
+        run: |
+          if [ "${{ matrix.builder }}" = cross ]; then
+            cross build --release --locked --target "${{ matrix.target }}"
+          else
+            cargo build --release --locked --target "${{ matrix.target }}"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wattdog-${{ matrix.arch }}
+          path: target/${{ matrix.target }}/release/wattdog
+          if-no-files-found: error
+
+  containers:
+    name: Containers
+    runs-on: ubuntu-latest
+    needs: binaries
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage binaries
+        run: |
+          mkdir -p target/x86_64-unknown-linux-gnu/release target/aarch64-unknown-linux-gnu/release
+          cp artifacts/wattdog-linux-amd64/wattdog target/x86_64-unknown-linux-gnu/release/wattdog
+          cp artifacts/wattdog-linux-arm64-rpi64/wattdog target/aarch64-unknown-linux-gnu/release/wattdog
+          chmod +x target/*/release/wattdog
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: amd64,arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image tags
+        id: image
+        run: |
+          echo "name=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/wattdog" >> "$GITHUB_OUTPUT"
+          echo "ref_tag=${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
+          echo "sha_tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build amd64 image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/Containerfile
+          platforms: linux/amd64
+          push: true
+          build-args: TARGET_TRIPLE=x86_64-unknown-linux-gnu
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.sha_tag }}-amd64
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.ref_tag }}-amd64
+
+      - name: Build arm64/RPi image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packaging/Containerfile
+          platforms: linux/arm64
+          push: true
+          build-args: TARGET_TRIPLE=aarch64-unknown-linux-gnu
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.sha_tag }}-arm64
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.ref_tag }}-arm64
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.sha_tag }}-rpi64
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.ref_tag }}-rpi64
+
+      - name: Publish multi-arch image tags
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+          REF_TAG: ${{ steps.image.outputs.ref_tag }}
+          SHA_TAG: ${{ steps.image.outputs.sha_tag }}
+        run: |
+          docker buildx imagetools create -t "$IMAGE:$SHA_TAG" "$IMAGE:$SHA_TAG-amd64" "$IMAGE:$SHA_TAG-arm64"
+          docker buildx imagetools create -t "$IMAGE:$REF_TAG" "$IMAGE:$REF_TAG-amd64" "$IMAGE:$REF_TAG-arm64"

@@ -1,0 +1,36 @@
+[package]
+name = "wattdog"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+publish = false
+
+[dependencies]
+anyhow = "1"
+arrow = "59"
+axum = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+clap = { version = "4", features = ["derive"] }
+parquet = { version = "59", features = ["arrow", "zstd"] }
+prometheus-client = "0.25"
+humantime-serde = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = "0.7"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+url = { version = "2", features = ["serde"] }
+
+[build-dependencies]
+bindgen = "0.72"
+cc = "1"
+
+[lints.rust]
+missing_debug_implementations = "warn"
+unsafe_op_in_unsafe_fn = "warn"
+
+[lints.clippy]
+cargo = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }

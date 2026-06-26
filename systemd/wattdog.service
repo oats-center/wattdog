@@ -1,0 +1,23 @@
+[Unit]
+Description=wattdog
+After=network-online.target bluetooth.target dbus.service
+Wants=network-online.target bluetooth.target
+
+[Service]
+Type=simple
+User=wattdog
+Group=wattdog
+ExecStart=/usr/local/bin/wattdog --config /etc/wattdog/config.toml
+Restart=always
+RestartSec=5s
+
+ReadWritePaths=/var/lib/wattdog
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+# Bluetooth/DBus access may require additional groups or capabilities on PiKVM.
+
+[Install]
+WantedBy=multi-user.target

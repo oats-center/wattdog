@@ -1,0 +1,51 @@
+# Raspberry Pi / PiKVM 12V LiFePO4 voltage-only example.
+#
+# Assumes a 4S "12V" LiFePO4 battery and an HTTP-controlled relay or ATX
+# controller that accepts POST requests to turn the protected system off/on.
+#
+# Starting thresholds:
+# - OFF at <= 11.2V for 2 minutes: near empty under load, before most BMS cutoffs.
+# - ON at >= 13.1V for 10 minutes: roughly recharged enough to avoid rapid cycling.
+#
+# Tune these from your own Parquet history. LiFePO4 voltage is flat through much
+# of the discharge curve, and charger/load wiring can shift these values.
+# Production files may contain secret action URLs; install as mode 0600.
+
+[data]
+dir = "/var/lib/wattdog"
+roll = "hourly"
+
+[metrics]
+listen = "127.0.0.1:9107"
+
+[http]
+method = "POST"
+timeout = "5s"
+retry_initial = "1s"
+retry_max = "5s"
+require_https = false
+allow_invalid_certs = false
+
+[[states]]
+name = "rpi_power"
+# Replace with your Thornwave serial from `wattdog_device_info` metrics.
+serial = "12345678"
+# Use the voltage channel wired to the protected 12V battery bus.
+field = "voltage1_volts"
+# If the first sample is between thresholds, assume the system should be on.
+default_state = "on"
+stale_after = "45s"
+
+[states.on]
+op = ">="
+value = 13.1
+duration = "10m"
+# Replace with your local relay/ATX endpoint for powering the system back on.
+url = "http://127.0.0.1:8080/relay/on"
+
+[states.off]
+op = "<="
+value = 11.2
+duration = "2m"
+# Replace with your local relay/ATX endpoint for safely removing load.
+url = "http://127.0.0.1:8080/relay/off"

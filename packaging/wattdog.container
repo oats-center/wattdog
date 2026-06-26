@@ -1,0 +1,25 @@
+[Unit]
+Description=wattdog container
+After=network-online.target bluetooth.target dbus.service
+Wants=network-online.target bluetooth.target
+
+[Container]
+Image=localhost/wattdog:latest
+ContainerName=wattdog
+Exec=--config /etc/wattdog/config.toml
+Network=bridge
+PublishPort=127.0.0.1:9107:9107
+Volume=/run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+Volume=/etc/wattdog/config.toml:/etc/wattdog/config.toml:ro
+Volume=/var/lib/wattdog:/var/lib/wattdog:Z
+ReadOnly=true
+Tmpfs=/tmp
+NoNewPrivileges=true
+DropCapability=all
+
+[Service]
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
