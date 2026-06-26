@@ -6,11 +6,29 @@
 
 # wattdog
 
-PowerMon watchdog daemon for PiKVM/Raspberry Pi systems.
+[![GitHub Release](https://img.shields.io/github/v/release/oats-center/wattdog?logo=github)](https://github.com/oats-center/wattdog/releases)
+[![Container Image](https://img.shields.io/badge/ghcr.io-oats--center%2Fwattdog-blue?logo=podman)](https://github.com/oats-center/wattdog/pkgs/container/wattdog)
+[![Rust](https://img.shields.io/badge/rust-2024-orange?logo=rust)](https://www.rust-lang.org/)
 
-wattdog watches Thornwave PowerMon BLE advertisements, records the readings, and calls HTTP endpoints when configured thresholds are crossed. The common use is keeping a Raspberry Pi or PiKVM alive on battery, then safely turning loads off or back on based on measured voltage.
+A watchdog daemon for [Thornwave Labs PowerMon](https://www.thornwave.com/) devices on PiKVM / Raspberry Pi systems.
+
+wattdog listens for PowerMon BLE advertisements, records the readings, and calls HTTP endpoints when configured thresholds are crossed. The common use case is keeping a Raspberry Pi or PiKVM alive on battery, then safely turning loads off or back on based on measured voltage.
 
 It also exposes `/healthz` and Prometheus `/metrics`, and stores samples as local Parquet files for later inspection.
+
+---
+
+## Table of Contents
+
+- [Install From Built Assets](#install-from-built-assets)
+  - [Release Binary](#release-binary)
+  - [Container Image](#container-image)
+  - [Quadlet](#quadlet)
+- [Configuration](#configuration)
+- [More Details](#more-details)
+- [Credits](#credits)
+
+---
 
 ## Install From Built Assets
 
@@ -62,6 +80,8 @@ systemctl enable --now wattdog.service
 
 Change `Image=` to a release tag, such as `ghcr.io/oats-center/wattdog:v0.1.0`, when you want a pinned version.
 
+---
+
 ## Configuration
 
 By default, the daemon reads:
@@ -108,9 +128,13 @@ For a no-network action test:
 wattdog --config /etc/wattdog/config.toml --dry-run
 ```
 
+---
+
 ## More Details
 
-See `docs/reference.md` for custom builds, container notes, metrics, Parquet layout, DuckDB queries, and retention.
+See [`docs/reference.md`](docs/reference.md) for custom builds, container notes, metrics, Parquet layout, DuckDB queries, and retention.
+
+---
 
 ## Credits
 
