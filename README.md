@@ -1,12 +1,81 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
+  <img alt="wattdog" src="assets/logo.png" width="320">
+</picture>
+
 # wattdog
 
 PowerMon watchdog daemon for PiKVM/Raspberry Pi systems.
 
-The daemon scans Thornwave BLE advertisements through Thornwave's native SDK, serves `/healthz` and Prometheus-compatible `/metrics`, stores observed samples as local Parquet files, and uses configured thresholds to drive HTTP actions. In `--dry-run` mode it records action success without sending HTTP requests.
+The daemon scans Thornwave BLE advertisements through Thornwave's native SDK, serves `/healthz` and Prometheus-compatible `/metrics`, stores observed samples as local Parquet files, and uses configured thresholds to drive HTTP actions.
 
-## Build requirements
+## Use Built Assets
 
-The Thornwave SDK is a mandatory build-time dependency, but it is not committed to this repository. Install or unpack it at `vendor/libpowermon_bin`, or point `THORNWAVE_SDK_DIR` at another local SDK path. By default, `build.rs` uses `vendor/libpowermon_bin` and selects the static library by target architecture:
+GitHub Actions builds release binaries and container images. Prefer these unless you need to change the code or rebuild against a local Thornwave SDK checkout.
+
+### Release Binary
+
+Download the Raspberry Pi 64-bit tarball from the latest GitHub release:
+
+```bash
+curl -LO "$(curl -fsSL https://api.github.com/repos/oats-center/wattdog/releases/latest \
+  | jq -r '.assets[] | select(.name | endswith("linux-arm64-rpi64.tar.gz")) | .browser_download_url')"
+tar -xzf wattdog-*-linux-arm64-rpi64.tar.gz
+install -m 0755 wattdog /usr/local/bin/wattdog
+```
+
+For x86_64 Linux, use `wattdog-*-linux-amd64.tar.gz` instead.
+
+### Container Image
+
+GitHub Actions also publishes images to GHCR:
+
+```bash
+podman pull ghcr.io/oats-center/wattdog:main
+podman run --rm \
+  --name wattdog \
+  -p 127.0.0.1:9107:9107 \
+  -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro \
+  -v /etc/wattdog/config.toml:/etc/wattdog/config.toml:ro \
+  -v /var/lib/wattdog:/var/lib/wattdog:Z \
+  ghcr.io/oats-center/wattdog:main
+```
+
+Use a release tag, such as `ghcr.io/oats-center/wattdog:v0.1.0`, when you want a pinned version.
+
+### Quadlet
+
+Install the Quadlet unit if you want systemd to manage the container:
+
+```bash
+install -d /etc/containers/systemd
+curl -fsSL https://raw.githubusercontent.com/oats-center/wattdog/main/packaging/wattdog.container \
+  -o /etc/containers/systemd/wattdog.container
+sed -i 's#Image=localhost/wattdog:latest#Image=ghcr.io/oats-center/wattdog:main#' \
+  /etc/containers/systemd/wattdog.container
+systemctl daemon-reload
+systemctl enable --now wattdog.service
+```
+
+Change `Image=` to a release tag, such as `ghcr.io/oats-center/wattdog:v0.1.0`, when you want a pinned version.
+
+The container mounts `/run/dbus/system_bus_socket` because BlueZ exposes Bluetooth scanning over the host system bus.
+
+Use LAN addresses, another container/pod address, or Podman's host gateway name in action URLs. For an action service running on the same host, use `http://host.containers.internal/...`. Switch to `--network host` only if the action service is bound to host loopback and cannot be changed.
+
+## Custom Build
+
+### Build Requirements
+
+The Thornwave SDK is a mandatory build-time dependency, but it is not committed to this repository. Clone the public SDK repo into the ignored `vendor/libpowermon_bin` path:
+
+```bash
+mkdir -p vendor
+git clone https://git.thornwave.com/git/thornwave/libpowermon_bin.git vendor/libpowermon_bin
+```
+
+By default, `build.rs` uses `vendor/libpowermon_bin` and selects the static library by target architecture:
 
 - `powermon_lib_pic.a` for normal x86_64 Linux development builds
 - `powermon_lib_rpi64_pic.a` for aarch64/Raspberry Pi 64-bit builds
@@ -17,7 +86,7 @@ Build with:
 cargo build --release
 ```
 
-To override the SDK path or library filename:
+To use a different local SDK checkout or library filename:
 
 ```bash
 export THORNWAVE_SDK_DIR=/opt/libpowermon_bin
@@ -33,19 +102,12 @@ cargo build --release
 
 The build links the Thornwave static library plus `stdc++`, `bluetooth`, and `dbus-1`.
 
-## Cross-compile for Raspberry Pi 64-bit
+### Cross-compile for aarch64/Raspberry Pi 64-bit
 
 The recommended cross-build path is [`cross`](https://github.com/cross-rs/cross). This crate includes `Cross.toml` and a Fedora 42 based `Dockerfile.aarch64-unknown-linux-gnu` for `aarch64-unknown-linux-gnu`.
 
 ```bash
 cargo install cross --git https://github.com/cross-rs/cross
-cross build --release --target aarch64-unknown-linux-gnu
-```
-
-If you previously tried a manual host cross-build and see build-script `GLIBC_* not found` errors, clear the stale target artifacts once:
-
-```bash
-cargo clean --target aarch64-unknown-linux-gnu
 cross build --release --target aarch64-unknown-linux-gnu
 ```
 
@@ -55,19 +117,18 @@ The resulting binary is:
 target/aarch64-unknown-linux-gnu/release/wattdog
 ```
 
-For manual cross-compiles, install the Rust target and an aarch64 Linux cross toolchain, then build with an aarch64 linker:
+### Build Container Locally
+
+Build the Raspberry Pi binary first, then build the Fedora 42 runtime image from that binary:
 
 ```bash
-rustup target add aarch64-unknown-linux-gnu
-CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
-  cargo build --release --target aarch64-unknown-linux-gnu
+cross build --release --target aarch64-unknown-linux-gnu
+podman build --arch arm64 -f packaging/Containerfile -t localhost/wattdog:latest .
 ```
-
-The cross linker must be able to find target `stdc++`, BlueZ, and DBus libraries.
 
 ## Configuration
 
-By default the daemon reads:
+By default, the daemon reads:
 
 ```text
 /etc/wattdog/config.toml
@@ -109,66 +170,6 @@ When running under systemd:
 ```bash
 journalctl -u wattdog.service -f
 ```
-
-## Run With Podman
-
-Build the Raspberry Pi binary first, then build the Fedora 42 runtime image from that binary:
-
-```bash
-cross build --release --target aarch64-unknown-linux-gnu
-podman build --arch arm64 -f packaging/Containerfile -t localhost/wattdog:latest .
-```
-
-## GitHub Actions Builds
-
-`.github/workflows/build.yml` builds `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`, uploads both binaries, publishes GHCR images tagged with `-amd64`, `-arm64`, and `-rpi64` suffixes, and creates unsuffixed multi-arch image tags.
-
-The workflow fetches the public Thornwave SDK from `https://git.thornwave.com/git/thornwave/libpowermon_bin.git`, which must contain:
-
-```text
-inc/powermon.h
-inc/powermon_scanner.h
-powermon_lib_pic.a
-powermon_lib_rpi64_pic.a
-```
-
-32-bit Raspberry Pi builds are intentionally not enabled because the bundled Thornwave SDK archives are x86_64 and AArch64 only.
-
-For container use, set metrics to listen inside the container and publish it only on host localhost:
-
-```toml
-[metrics]
-listen = "0.0.0.0:9107"
-```
-
-Run directly with only the host resources this daemon should need:
-
-```bash
-podman run --rm \
-  --name wattdog \
-  --network bridge \
-  -p 127.0.0.1:9107:9107 \
-  --read-only \
-  --tmpfs /tmp \
-  --security-opt no-new-privileges \
-  --cap-drop all \
-  -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro \
-  -v /etc/wattdog/config.toml:/etc/wattdog/config.toml:ro \
-  -v /var/lib/wattdog:/var/lib/wattdog:Z \
-  localhost/wattdog:latest
-```
-
-Install the Quadlet unit if you want systemd to manage the container:
-
-```bash
-install -m 0644 packaging/wattdog.container /etc/containers/systemd/wattdog.container
-systemctl daemon-reload
-systemctl enable --now wattdog.service
-```
-
-The container mounts `/run/dbus/system_bus_socket` because BlueZ exposes Bluetooth scanning over the host system bus. Keep SELinux labeling enabled by default; if BlueZ access fails with SELinux AVC denials, prefer a narrow host policy fix before trying `--security-opt label=disable` as a diagnostic shortcut.
-
-Bridge networking is the default because the daemon only needs outbound HTTP actions and one published metrics port. Use LAN addresses, another container/pod address, or Podman's host gateway name in action URLs. For an action service running on the same Raspberry Pi host, use `http://host.containers.internal:8080/...` instead of `http://127.0.0.1:8080/...`. Switch to `--network host` only if the action service is bound to host loopback and cannot be changed.
 
 ## Metrics
 
@@ -243,3 +244,7 @@ ORDER BY minute, serial;
 ## Retention
 
 Retention is external. Do not use logrotate to rotate or truncate active Parquet files. Cleanup jobs should delete only completed `*.parquet` files.
+
+## Credits
+
+This work was supported by the [Open Ag Technologies and Systems (OATS) Center at Purdue University](https://oatscenter.org/), [INDOT](https://www.in.gov/indot/) / [JTRP project SPR-4918](https://engineering.purdue.edu/JTRP/Research#:~:text=SPR-4918), and [IoT4Ag](https://iot4ag.us/).
