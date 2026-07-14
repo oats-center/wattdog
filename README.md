@@ -50,7 +50,7 @@ BLE Scanner → Sample Processor → State Engine → HTTP Actions
 1. **BLE Scanner** — Uses the Thornwave SDK to passively scan for PowerMon advertisements over Bluetooth.
 2. **Sample Processor** — Normalizes each advertisement into a typed sample and updates metrics.
 3. **State Engine** — Evaluates every configured threshold. When a condition holds continuously for its duration, it queues an action.
-4. **HTTP Actions** — Calls the configured endpoint with exponential backoff on failure.
+4. **HTTP Actions** — Runs configured request, delay, and JSON-polling sequences with exponential backoff on request failure.
 5. **Parquet Writer** — Persists every sample to time-partitioned Parquet files in the background.
 6. **Metrics Server** — Serves `/healthz` and `/metrics` for Prometheus scraping.
 
@@ -62,7 +62,7 @@ All components run concurrently. If the BLE scanner fails to start, the metrics 
 
 ### Battery-Protected Raspberry Pi / PiKVM
 
-The classic use case. A PiKVM or headless Raspberry Pi runs on a 12V LiFePO4 battery with an HTTP-controlled relay or ATX controller. wattdog monitors battery voltage and safely powers the system down before the battery is drained, then powers it back on when the battery has recharged enough.
+The classic use case. A PiKVM or headless Raspberry Pi runs on a 12V LiFePO4 battery with an HTTP-controlled relay or ATX controller. wattdog can request an ATX soft shutdown, wait for PiKVM to report power-off, and then remove relay power before the battery is drained. It powers the load back on only after the configured dwell and recovery threshold.
 
 This is the example configuration in [Quick Start](#quick-start).
 
@@ -266,7 +266,7 @@ RUST_LOG=debug wattdog --config /etc/wattdog/config.toml --dry-run
 | `[metrics]` | Bind address for `/healthz` and Prometheus `/metrics`. |
 | `[http]` | Shared HTTP client settings: method, timeout, retry backoff, TLS policy. |
 | `[[states]]` | One per logical output. Defines what to watch and which serial to watch. |
-| `[states.on]` / `[states.off]` | Threshold, duration, and action URL for each state transition. |
+| `[states.on]` / `[states.off]` | Threshold, duration, dwell, and single URL or ordered action sequence. |
 
 For the full reference, including how the state machine handles continuous duration, stale data, retry backoff, and ambiguous states, see [`docs/config.md`](docs/config.md).
 
@@ -289,6 +289,8 @@ Important metrics include:
 - `wattdog_voltage1_volts{serial="..."}` — Latest voltage reading per device
 - `wattdog_state_desired{name="..."}` — What the state engine wants to do
 - `wattdog_state_applied{name="..."}` — What has been successfully applied
+- `wattdog_action_sequence_step{name="..."}` — Current action step, or `-1` while idle
+- `wattdog_action_wait_timeouts_total{name="...",target="on|off"}` — Polling deadlines reached
 - `wattdog_http_attempts_total{name="...",target="on\|off",result="success\|failure"}` — Action success/failure counts
 
 See [`docs/reference.md`](docs/reference.md) for the complete metrics list, Parquet layout, DuckDB query examples, and retention guidance.

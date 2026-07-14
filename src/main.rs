@@ -291,12 +291,19 @@ async fn run_state_tick(
                 let actions = engine.lock().await.collect_due_actions(&metrics, now);
                 for action in actions {
                     let outcome = action_client
-                        .send(&action.state_name, action.target, &action.url)
+                        .execute(
+                            &action.state_name,
+                            action.target,
+                            action.step_index,
+                            &action.action,
+                            action.deadline,
+                        )
                         .await;
+                    let completed_at = Instant::now();
                     engine
                         .lock()
                         .await
-                        .record_action_result(&action, outcome, &metrics, now);
+                        .record_action_result(&action, outcome, &metrics, completed_at);
                 }
             }
             () = shutdown.cancelled() => break,

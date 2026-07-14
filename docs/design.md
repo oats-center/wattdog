@@ -39,7 +39,11 @@ If the queue is full, the observation is dropped and `wattdog_observations_dropp
 
 Each configured state selects one device serial and one measurement field. Fresh samples advance ON/OFF threshold timers; stale samples pause new decisions but keep already-pending retries alive.
 
-HTTP actions are sent only when a transition is due. `2xx` responses and `--dry-run` count as success and update the applied state. Failures keep the old applied state and retry with capped backoff.
+Transitions may contain an ordered sequence of HTTP requests, nonblocking delays, and JSON polling waits. Once started, a sequence is atomic with respect to threshold changes and continues during stale input. Request failures retry only the current step with capped backoff; polling waits have an explicit timeout policy. `--dry-run` treats HTTP and polling steps as successful without network access.
+
+Applied state changes only after the final step completes. The completed transition's `hold_for` dwell then runs before wattdog begins qualifying the opposite threshold. Sequence timing starts from actual HTTP completion, and polling requests are bounded by their remaining sequence deadline.
+
+HTTP execution is at least once and sequence progress is not persisted. Configured actuator endpoints must therefore be idempotent so a lost response or daemon restart can safely repeat a request.
 
 ## Storage policy
 

@@ -101,6 +101,9 @@ pub struct HttpConfig {
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum HttpMethod {
+    /// GET action request.
+    Get,
+
     /// POST action request.
     Post,
 
@@ -160,8 +163,64 @@ pub struct TransitionConfig {
     #[serde(with = "humantime_serde")]
     pub duration: Duration,
 
-    /// Absolute action URL. Never log this in full.
-    pub url: Url,
+    /// Minimum time to retain this applied state before qualifying the opposite transition.
+    #[serde(default, with = "humantime_serde")]
+    pub hold_for: Duration,
+
+    /// Legacy single action URL. Never log this in full.
+    #[serde(default)]
+    pub url: Option<Url>,
+
+    /// Ordered action sequence.
+    #[serde(default)]
+    pub actions: Vec<ActionStepConfig>,
+}
+
+/// One step in a transition action sequence.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum ActionStepConfig {
+    /// Send one HTTP request and advance after a successful response.
+    Request {
+        /// Override the shared HTTP method for this request.
+        #[serde(default)]
+        method: Option<HttpMethod>,
+        /// Absolute request URL. Never log this in full.
+        url: Url,
+    },
+    /// Wait without blocking execution of other states.
+    Delay {
+        /// Delay before advancing to the next step.
+        #[serde(with = "humantime_serde")]
+        duration: Duration,
+    },
+    /// Poll a JSON endpoint until a JSON Pointer has the expected value.
+    WaitForJson {
+        /// Absolute polling URL. Never log this in full.
+        url: Url,
+        /// RFC 6901 JSON Pointer into the response document.
+        pointer: String,
+        /// Exact JSON value required at `pointer`.
+        expected: serde_json::Value,
+        /// Delay between poll requests.
+        #[serde(with = "humantime_serde")]
+        poll_every: Duration,
+        /// Maximum time to wait before applying `on_timeout`.
+        #[serde(with = "humantime_serde")]
+        timeout: Duration,
+        /// Behavior when the polling deadline expires.
+        on_timeout: WaitTimeoutPolicy,
+    },
+}
+
+/// Behavior after a JSON wait step reaches its timeout.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum WaitTimeoutPolicy {
+    /// Treat the wait step as complete and continue the sequence.
+    Continue,
+    /// Keep polling by starting another timeout window after retry backoff.
+    Retry,
 }
 
 /// Supported Thornwave measurement fields for action thresholds.
@@ -268,12 +327,37 @@ impl Config {
                 "state {} stale_after must be greater than zero",
                 state.name
             );
-            validate_transition_url(&state.name, "on", &state.on.url, self.http.require_https)?;
-            validate_transition_url(&state.name, "off", &state.off.url, self.http.require_https)?;
+            validate_transition_actions(&state.name, "on", &state.on, self.http.require_https)?;
+            validate_transition_actions(&state.name, "off", &state.off, self.http.require_https)?;
             validate_thresholds(state)?;
         }
 
         Ok(())
+    }
+}
+
+impl TransitionConfig {
+    /// Number of HTTP, delay, and polling steps in this transition.
+    #[must_use]
+    pub fn action_count(&self) -> usize {
+        if self.actions.is_empty() {
+            usize::from(self.url.is_some())
+        } else {
+            self.actions.len()
+        }
+    }
+
+    /// Returns one action step, adapting a legacy URL into a request step.
+    #[must_use]
+    pub fn action(&self, index: usize) -> Option<ActionStepConfig> {
+        if self.actions.is_empty() {
+            (index == 0)
+                .then(|| self.url.clone())
+                .flatten()
+                .map(|url| ActionStepConfig::Request { method: None, url })
+        } else {
+            self.actions.get(index).cloned()
+        }
     }
 }
 
@@ -335,6 +419,86 @@ fn validate_transition_url(
     }
 }
 
+fn validate_transition_actions(
+    state_name: &str,
+    transition_name: &str,
+    transition: &TransitionConfig,
+    require_https: bool,
+) -> Result<()> {
+    ensure!(
+        transition.url.is_some() == transition.actions.is_empty(),
+        "state {state_name} {transition_name} must configure exactly one of url or actions"
+    );
+
+    if let Some(url) = &transition.url {
+        validate_transition_url(state_name, transition_name, url, require_https)?;
+    }
+
+    for (index, action) in transition.actions.iter().enumerate() {
+        match action {
+            ActionStepConfig::Request { url, .. } => validate_transition_url(
+                state_name,
+                &format!("{transition_name} action {index}"),
+                url,
+                require_https,
+            )?,
+            ActionStepConfig::Delay { duration } => ensure!(
+                *duration >= Duration::from_secs(1),
+                "state {state_name} {transition_name} action {index} delay must be at least 1s"
+            ),
+            ActionStepConfig::WaitForJson {
+                url,
+                pointer,
+                poll_every,
+                timeout,
+                ..
+            } => {
+                validate_transition_url(
+                    state_name,
+                    &format!("{transition_name} action {index}"),
+                    url,
+                    require_https,
+                )?;
+                ensure!(
+                    valid_json_pointer(pointer),
+                    "state {state_name} {transition_name} action {index} pointer must be a valid RFC 6901 JSON Pointer"
+                );
+                ensure!(
+                    *poll_every >= Duration::from_secs(1),
+                    "state {state_name} {transition_name} action {index} poll_every must be at least 1s"
+                );
+                ensure!(
+                    *timeout >= Duration::from_secs(1),
+                    "state {state_name} {transition_name} action {index} timeout must be at least 1s"
+                );
+                ensure!(
+                    poll_every <= timeout,
+                    "state {state_name} {transition_name} action {index} poll_every must be <= timeout"
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn valid_json_pointer(pointer: &str) -> bool {
+    if pointer.is_empty() {
+        return true;
+    }
+    if !pointer.starts_with('/') {
+        return false;
+    }
+
+    let mut chars = pointer.chars();
+    while let Some(character) = chars.next() {
+        if character == '~' && !matches!(chars.next(), Some('0' | '1')) {
+            return false;
+        }
+    }
+    true
+}
+
 fn validate_thresholds(state: &StateConfig) -> Result<()> {
     let on_upper = upper_bound(state.on.op);
     let off_upper = upper_bound(state.off.op);
@@ -385,6 +549,8 @@ fn default_retry_max() -> Duration {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::Config;
 
     const VALID: &str = r#"
@@ -417,6 +583,61 @@ url = "http://127.0.0.1/off"
     #[test]
     fn valid_minimal_config_loads() {
         parse_ok(VALID);
+    }
+
+    #[test]
+    fn action_sequence_loads() {
+        let sequence = VALID.replace(
+            "url = \"http://127.0.0.1/off\"",
+            r#"hold_for = "30m"
+
+[[states.off.actions]]
+type = "request"
+method = "POST"
+url = "http://127.0.0.1/atx/off"
+
+[[states.off.actions]]
+type = "wait_for_json"
+url = "http://127.0.0.1/atx"
+pointer = "/result/leds/power"
+expected = false
+poll_every = "5s"
+timeout = "2m"
+on_timeout = "continue"
+
+[[states.off.actions]]
+type = "delay"
+duration = "1s""#,
+        );
+        let config = parse_ok(&sequence);
+        assert_eq!(config.states[0].off.action_count(), 3);
+        assert_eq!(config.states[0].off.hold_for, Duration::from_mins(30));
+    }
+
+    #[test]
+    fn transition_rejects_both_or_neither_action_form() {
+        parse_err(&VALID.replace(
+            "url = \"http://127.0.0.1/off\"",
+            "url = \"http://127.0.0.1/off\"\n[[states.off.actions]]\ntype = \"delay\"\nduration = \"1s\"",
+        ));
+        parse_err(&VALID.replace("url = \"http://127.0.0.1/off\"", "actions = []"));
+    }
+
+    #[test]
+    fn action_sequence_rejects_malformed_pointer_and_subsecond_timing() {
+        let sequence = VALID.replace(
+            "url = \"http://127.0.0.1/off\"",
+            r#"[[states.off.actions]]
+type = "wait_for_json"
+url = "http://127.0.0.1/atx"
+pointer = "/result/~2power"
+expected = false
+poll_every = "500ms"
+timeout = "2s"
+on_timeout = "continue""#,
+        );
+        parse_err(&sequence);
+        parse_err(&sequence.replace("/result/~2power", "/result/power"));
     }
 
     #[test]

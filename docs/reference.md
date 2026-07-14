@@ -117,6 +117,8 @@ Important sample/storage metrics include:
 - `wattdog_parquet_write_errors_total`
 - `wattdog_state_desired{name="..."}`
 - `wattdog_state_applied{name="..."}`
+- `wattdog_action_sequence_step{name="..."}` (`-1` while idle)
+- `wattdog_action_wait_timeouts_total{name="...",target="on|off"}`
 - `wattdog_http_attempts_total{name="...",target="on|off",result="success|failure"}`
 
 Action URLs are never used as metric labels.

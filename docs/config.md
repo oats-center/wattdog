@@ -25,6 +25,7 @@ wattdog --config /etc/wattdog/config.toml --check-config
   - [`[http]` — Action Client](#http--action-client)
   - [`[[states]]` — Threshold Outputs](#states--threshold-outputs)
     - [`[states.on]` / `[states.off]` — Transitions](#stateson--statesoff--transitions)
+    - [Action Sequences](#action-sequences)
 - [How Thresholds Work](#how-thresholds-work)
   - [Continuous Duration](#continuous-duration)
   - [Opposite Directions](#opposite-directions)
@@ -34,6 +35,7 @@ wattdog --config /etc/wattdog/config.toml --check-config
   - [Default State](#default-state)
 - [Finding Your Serial](#finding-your-serial)
 - [Minimal Example](#minimal-example)
+- [PiKVM Graceful Shutdown Example](#pikvm-graceful-shutdown-example)
 
 ---
 
@@ -64,7 +66,7 @@ Shared HTTP settings for all action URLs across all states.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `method` | string | *(required)* | `"POST"` or `"PUT"`. |
+| `method` | string | *(required)* | Default request method: `"GET"`, `"POST"`, or `"PUT"`. |
 | `timeout` | duration | `"5s"` | Per-request timeout. |
 | `retry_initial` | duration | `"1s"` | First retry delay after a failed action. |
 | `retry_max` | duration | `"5s"` | Maximum retry delay. Capped at 5 seconds. |
@@ -87,14 +89,37 @@ Each `[[states]]` block defines one binary output controlled by one PowerMon mea
 
 #### `[states.on]` / `[states.off]` — Transitions
 
-Each state has exactly two transitions. When a transition's condition is met continuously for its duration, wattdog calls the transition's URL to move the output to that state.
+Each state has exactly two transitions. When a transition's condition is met continuously for its duration, wattdog runs its action to move the output to that state.
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `op` | string | Comparison operator: `<`, `<=`, `>`, `>=`. |
 | `value` | float | Threshold value. |
 | `duration` | duration | How long the condition must hold without interruption. |
-| `url` | string | HTTP endpoint to call when this transition fires. |
+| `hold_for` | duration | Minimum time to retain this state after its action completes. Default: `"0s"`. |
+| `url` | string | Single HTTP endpoint to call. Mutually exclusive with `actions`. |
+| `actions` | array | Ordered action steps. Mutually exclusive with `url`. |
+
+Existing `url` configurations remain valid and behave as a one-request sequence using `[http].method`.
+
+#### Action Sequences
+
+An action sequence contains one or more `request`, `delay`, or `wait_for_json` steps:
+
+| Step | Required fields | Optional fields | Behavior |
+|------|-----------------|-----------------|----------|
+| `request` | `type`, `url` | `method` | Sends one request. A per-step method overrides `[http].method`. |
+| `delay` | `type`, `duration` | — | Waits without blocking other states. Minimum: `1s`. |
+| `wait_for_json` | `type`, `url`, `pointer`, `expected`, `poll_every`, `timeout`, `on_timeout` | — | Sends GET requests until an RFC 6901 JSON Pointer exactly equals `expected`. |
+
+`poll_every` and `timeout` must be at least one second. `on_timeout` is either:
+
+- `continue`: record the timeout and advance to the next step.
+- `retry`: retain the wait step and start another timeout window after HTTP retry backoff.
+
+Sequences are atomic at the state-machine level. Once started, a sequence finishes even if input becomes stale or the opposite threshold subsequently matches. Failed request steps retry in place; successful earlier steps are not repeated. Applied state changes only after the final step completes.
+
+HTTP delivery is at least once. If an actuator accepts a request but its response is lost, wattdog retries that step. Use idempotent endpoints that set a desired state, not endpoints that blindly toggle state. Sequence progress is held in memory, so a daemon restart begins the selected sequence at its first step.
 
 ---
 
@@ -138,6 +163,12 @@ When an action URL fails, wattdog retries with exponential backoff starting at `
 | 4+ | 5s |
 
 A successful action clears the backoff and resets the retry counter.
+
+### Applied-State Dwell
+
+After a transition sequence completes, its `hold_for` period begins. wattdog does not accumulate the opposite transition's threshold timer during the sequence or dwell. Once dwell expires, the opposite condition must remain true for its full `duration`.
+
+For example, `off.hold_for = "30m"` plus `on.duration = "10m"` keeps the output off for at least 30 minutes and then requires 10 continuous minutes above the ON threshold.
 
 ### Default State
 
@@ -200,3 +231,56 @@ value = 12.6
 duration = "5m"
 url = "http://127.0.0.1:8080/relay/off"
 ```
+
+## PiKVM Graceful Shutdown Example
+
+This sequence asks PiKVM to press the host's ATX power button, polls its power LED for up to two minutes, and then opens the load relay. PiKVM's `wait=1` waits for the button operation, not for the operating system to finish shutting down; the JSON wait provides that verification. If shutdown never completes, `on_timeout = "continue"` guarantees eventual battery load shedding.
+
+```toml
+[states.on]
+op = ">="
+value = 13.1
+duration = "10m"
+hold_for = "5m"
+
+[[states.on.actions]]
+type = "request"
+method = "POST"
+url = "https://admin:password@pikvm/api/gpio/switch?channel=load&state=1&wait=1"
+
+[[states.on.actions]]
+type = "delay"
+duration = "5s"
+
+[[states.on.actions]]
+type = "request"
+method = "POST"
+url = "https://admin:password@pikvm/api/atx/power?action=on&wait=1"
+
+[states.off]
+op = "<="
+value = 11.2
+duration = "2m"
+hold_for = "30m"
+
+[[states.off.actions]]
+type = "request"
+method = "POST"
+url = "https://admin:password@pikvm/api/atx/power?action=off&wait=1"
+
+[[states.off.actions]]
+type = "wait_for_json"
+url = "https://admin:password@pikvm/api/atx"
+pointer = "/result/leds/power"
+expected = false
+poll_every = "5s"
+timeout = "2m"
+on_timeout = "continue"
+
+[[states.off.actions]]
+type = "request"
+method = "POST"
+url = "https://admin:password@pikvm/api/gpio/switch?channel=load&state=0&wait=1"
+```
+
+Replace `load` with the output channel configured in PiKVM. Keep PiKVM and wattdog powered independently from the relay-controlled load, and protect the configuration as mode `0600` because these URLs contain credentials.

@@ -5,7 +5,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 
 use crate::{
-    config::{BinaryState, Config, HttpConfig},
+    config::{ActionStepConfig, BinaryState, Config, HttpConfig},
     metrics::Metrics,
     sample::Sample,
     state::machine::{ActionOutcome, RuntimeState, TickDecision},
@@ -20,8 +20,12 @@ pub struct DueAction {
     pub state_name: String,
     /// Target output state.
     pub target: BinaryState,
-    /// HTTP endpoint to call.
-    pub url: url::Url,
+    /// Zero-based sequence step.
+    pub step_index: usize,
+    /// HTTP sequence step to execute.
+    pub action: ActionStepConfig,
+    /// Polling deadline, when this is a JSON wait step.
+    pub deadline: Option<Instant>,
 }
 
 /// Runtime state engine for every configured output.
@@ -85,6 +89,7 @@ impl StateEngine {
         let mut actions = Vec::new();
 
         for (state_index, runtime) in self.states.iter_mut().enumerate() {
+            let previous_applied = runtime.applied_state;
             let decision = runtime.tick(now, self.http.retry_initial, self.http.retry_max);
 
             if let Some(sample_at) = runtime.latest_sample_at {
@@ -93,6 +98,40 @@ impl StateEngine {
                     now.saturating_duration_since(sample_at).as_secs_f64(),
                 );
             }
+            let due = match decision {
+                TickDecision::None => None,
+                TickDecision::WaitTimedOut { target, step_index } => {
+                    metrics.action_wait_timeout(&runtime.config.name, target);
+                    runtime.record_wait_timeout(
+                        target,
+                        step_index,
+                        now,
+                        self.http.retry_initial,
+                        self.http.retry_max,
+                    );
+                    None
+                }
+                TickDecision::Attempt { target, step_index } => Some((target, step_index)),
+            };
+
+            if previous_applied != runtime.applied_state {
+                if let Some(applied) = runtime.applied_state {
+                    metrics.state_transition(&runtime.config.name, applied);
+                }
+                metrics.set_action_sequence_step(&runtime.config.name, None);
+            }
+            metrics.set_action_sequence_step(
+                &runtime.config.name,
+                runtime
+                    .pending_target_state
+                    .map(|_| runtime.action_step_index),
+            );
+            metrics.set_http_retry_delay(
+                &runtime.config.name,
+                runtime.next_retry_at.map_or(0.0, |retry_at| {
+                    retry_at.saturating_duration_since(now).as_secs_f64()
+                }),
+            );
             metrics.set_state_status(
                 &runtime.config.name,
                 runtime.stale,
@@ -103,20 +142,25 @@ impl StateEngine {
                 runtime.config.default_state,
             );
 
-            let TickDecision::Attempt(target) = decision else {
+            let Some((target, step_index)) = due else {
                 continue;
             };
-
-            let url = match target {
-                BinaryState::On => runtime.config.on.url.clone(),
-                BinaryState::Off => runtime.config.off.url.clone(),
+            let Some(action) = runtime.transition(target).action(step_index) else {
+                continue;
             };
-
+            let deadline = match &action {
+                ActionStepConfig::WaitForJson { timeout, .. } => {
+                    runtime.step_started_at.map(|started| started + *timeout)
+                }
+                ActionStepConfig::Request { .. } | ActionStepConfig::Delay { .. } => None,
+            };
             actions.push(DueAction {
                 state_index,
                 state_name: runtime.config.name.clone(),
                 target,
-                url,
+                step_index,
+                action,
+                deadline,
             });
         }
 
@@ -137,20 +181,40 @@ impl StateEngine {
 
         let previous_applied = runtime.applied_state;
         let (success, status) = match &outcome {
-            ActionOutcome::Success { status } => (true, Some(*status)),
+            ActionOutcome::Success { status } | ActionOutcome::Pending { status } => {
+                (true, Some(*status))
+            }
             ActionOutcome::Failure { status, .. } => (false, *status),
         };
         metrics.http_attempt(&action.state_name, action.target, success, status);
-        runtime.record_action_result(
-            action.target,
-            outcome,
-            now,
-            self.http.retry_initial,
-            self.http.retry_max,
-        );
-        if success && previous_applied != runtime.applied_state {
+        if runtime.wait_timed_out(action.target, action.step_index, now) {
+            metrics.action_wait_timeout(&action.state_name, action.target);
+            runtime.record_wait_timeout(
+                action.target,
+                action.step_index,
+                now,
+                self.http.retry_initial,
+                self.http.retry_max,
+            );
+        } else {
+            runtime.record_action_result(
+                action.target,
+                action.step_index,
+                outcome,
+                now,
+                self.http.retry_initial,
+                self.http.retry_max,
+            );
+        }
+        if previous_applied != runtime.applied_state {
             metrics.state_transition(&action.state_name, action.target);
         }
+        metrics.set_action_sequence_step(
+            &action.state_name,
+            runtime
+                .pending_target_state
+                .map(|_| runtime.action_step_index),
+        );
         metrics.set_http_retry_delay(
             &action.state_name,
             runtime.next_retry_at.map_or(0.0, |retry_at| {
@@ -179,8 +243,9 @@ mod tests {
     use crate::{
         action::http::ActionClient,
         config::{
-            BinaryState, ComparisonOp, Config, DataConfig, HttpConfig, HttpMethod,
-            MeasurementField, MetricsConfig, RollPeriod, StateConfig, TransitionConfig,
+            ActionStepConfig, BinaryState, ComparisonOp, Config, DataConfig, HttpConfig,
+            HttpMethod, MeasurementField, MetricsConfig, RollPeriod, StateConfig, TransitionConfig,
+            WaitTimeoutPolicy,
         },
         metrics::Metrics,
         sample::Sample,
@@ -227,7 +292,13 @@ mod tests {
             .pop()
             .expect("due action");
         let outcome = client
-            .send(&action.state_name, action.target, &action.url)
+            .execute(
+                &action.state_name,
+                action.target,
+                action.step_index,
+                &action.action,
+                action.deadline,
+            )
             .await;
         engine.record_action_result(&action, outcome, &metrics, now);
 
@@ -266,6 +337,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn polling_response_after_deadline_uses_timeout_policy() {
+        let now = std::time::Instant::now();
+        let mut config = config("12345");
+        config.states[0].on.url = None;
+        config.states[0].on.actions = vec![ActionStepConfig::WaitForJson {
+            url: Url::parse("http://127.0.0.1/atx").expect("url"),
+            pointer: "/result/leds/power".to_string(),
+            expected: serde_json::Value::Bool(false),
+            poll_every: Duration::from_secs(1),
+            timeout: Duration::from_secs(1),
+            on_timeout: WaitTimeoutPolicy::Continue,
+        }];
+        let metrics = Metrics::new("test");
+        let mut engine = StateEngine::new(&config).expect("engine");
+        engine.observe_sample(&sample(SERIAL, 11.0), &metrics, now);
+        let action = engine
+            .collect_due_actions(&metrics, now)
+            .pop()
+            .expect("due action");
+
+        engine.record_action_result(
+            &action,
+            ActionOutcome::Failure {
+                status: None,
+                error: Some("timeout".to_string()),
+            },
+            &metrics,
+            now + Duration::from_secs(1),
+        );
+
+        assert_eq!(engine.states[0].applied_state, Some(BinaryState::On));
+        let encoded = metrics.encode().expect("metrics");
+        assert!(
+            encoded.contains("wattdog_action_wait_timeouts_total{name=\"relay\",target=\"on\"} 1")
+        );
+        assert!(
+            encoded.contains("wattdog_state_transitions_total{name=\"relay\",target=\"on\"} 1")
+        );
+    }
+
     fn config(serial: &str) -> Config {
         Config {
             data: DataConfig {
@@ -298,7 +410,9 @@ mod tests {
             op,
             value,
             duration: Duration::ZERO,
-            url: Url::parse(url).expect("valid url"),
+            hold_for: Duration::ZERO,
+            url: Some(Url::parse(url).expect("valid url")),
+            actions: Vec::new(),
         }
     }
 

@@ -99,6 +99,8 @@ pub struct Metrics {
     state_pending: Family<StateLabels, Gauge>,
     state_default: Family<StateLabels, Gauge>,
     state_transitions: Family<StateTargetLabels, Counter>,
+    action_sequence_step: Family<StateLabels, Gauge>,
+    action_wait_timeouts: Family<StateTargetLabels, Counter>,
     http_attempts: Family<HttpAttemptLabels, Counter>,
     http_last_status_code: Family<StateLabels, F64Gauge>,
     http_retry_delay_seconds: Family<StateLabels, F64Gauge>,
@@ -154,6 +156,8 @@ impl Metrics {
         let state_pending = Family::<StateLabels, Gauge>::default();
         let state_default = Family::<StateLabels, Gauge>::default();
         let state_transitions = Family::<StateTargetLabels, Counter>::default();
+        let action_sequence_step = Family::<StateLabels, Gauge>::default();
+        let action_wait_timeouts = Family::<StateTargetLabels, Counter>::default();
         let http_attempts = Family::<HttpAttemptLabels, Counter>::default();
         let http_last_status_code = Family::<StateLabels, F64Gauge>::default();
         let http_retry_delay_seconds = Family::<StateLabels, F64Gauge>::default();
@@ -335,6 +339,16 @@ impl Metrics {
             state_transitions.clone(),
         );
         registry.register(
+            "wattdog_action_sequence_step",
+            "Current zero-based action sequence step, or -1 when idle",
+            action_sequence_step.clone(),
+        );
+        registry.register(
+            "wattdog_action_wait_timeouts",
+            "Action JSON wait timeouts",
+            action_wait_timeouts.clone(),
+        );
+        registry.register(
             "wattdog_http_attempts",
             "HTTP action attempts",
             http_attempts.clone(),
@@ -395,6 +409,8 @@ impl Metrics {
             state_pending,
             state_default,
             state_transitions,
+            action_sequence_step,
+            action_wait_timeouts,
             http_attempts,
             http_last_status_code,
             http_retry_delay_seconds,
@@ -587,6 +603,23 @@ impl Metrics {
     /// Records a desired-state transition.
     pub fn state_transition(&self, name: &str, target: BinaryState) {
         self.state_transitions
+            .get_or_create(&StateTargetLabels {
+                name: name.to_string(),
+                target: target.as_str().to_string(),
+            })
+            .inc();
+    }
+
+    /// Updates the current zero-based sequence step for one configured state.
+    pub fn set_action_sequence_step(&self, name: &str, step: Option<usize>) {
+        self.action_sequence_step
+            .get_or_create(&state_labels(name))
+            .set(step.map_or(-1, |index| i64::try_from(index).unwrap_or(i64::MAX)));
+    }
+
+    /// Records one JSON wait timeout.
+    pub fn action_wait_timeout(&self, name: &str, target: BinaryState) {
+        self.action_wait_timeouts
             .get_or_create(&StateTargetLabels {
                 name: name.to_string(),
                 target: target.as_str().to_string(),
