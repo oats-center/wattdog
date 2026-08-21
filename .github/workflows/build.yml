@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     tags: ['v*']
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -16,7 +17,34 @@ env:
   THORNWAVE_SDK_REPO: https://git.thornwave.com/git/thornwave/libpowermon_bin.git
 
 jobs:
+  shared-ffi:
+    name: Shared Thornwave FFI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Restore Thornwave SDK
+        run: |
+          mkdir -p vendor
+          git clone --depth 1 "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          test -f vendor/libpowermon_bin/inc/powermon.h
+
+      - name: Install native build libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang g++ libbluetooth-dev libdbus-1-dev pkg-config
+
+      - name: Check formatting and library surfaces
+        run: |
+          cargo fmt --all -- --check
+          cargo check --locked --lib --no-default-features --features ffi
+          cargo check --locked --lib
+
   binaries:
+    if: github.event_name != 'pull_request'
     name: Binary (${{ matrix.arch }})
     runs-on: ubuntu-latest
     strategy:
@@ -74,6 +102,7 @@ jobs:
           if-no-files-found: error
 
   containers:
+    if: github.event_name != 'pull_request'
     name: Containers
     runs-on: ubuntu-latest
     needs: binaries

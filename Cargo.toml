@@ -5,28 +5,57 @@ edition = "2024"
 build = "build.rs"
 publish = false
 
+[features]
+default = ["app"]
+ffi = []
+app = [
+    "ffi",
+    "dep:anyhow",
+    "dep:arrow",
+    "dep:axum",
+    "dep:chrono",
+    "dep:clap",
+    "dep:parquet",
+    "dep:prometheus-client",
+    "dep:humantime-serde",
+    "dep:reqwest",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:tokio",
+    "dep:tokio-util",
+    "dep:toml",
+    "dep:tracing",
+    "dep:tracing-subscriber",
+    "dep:url",
+]
+
 [dependencies]
-anyhow = "1"
-arrow = "59"
-axum = "0.8"
-chrono = { version = "0.4", default-features = false, features = ["clock"] }
-clap = { version = "4", features = ["derive"] }
-parquet = { version = "59", features = ["arrow", "zstd"] }
-prometheus-client = "0.25"
-humantime-serde = "1"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-util = "0.7"
-toml = "0.8"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-url = { version = "2", features = ["serde"] }
+anyhow = { version = "1", optional = true }
+arrow = { version = "59", optional = true }
+axum = { version = "0.8", optional = true }
+chrono = { version = "0.4", default-features = false, features = ["clock"], optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+parquet = { version = "59", features = ["arrow", "zstd"], optional = true }
+prometheus-client = { version = "0.25", optional = true }
+humantime-serde = { version = "1", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+tokio = { version = "1", features = ["fs", "macros", "net", "rt-multi-thread", "signal", "sync", "time"], optional = true }
+tokio-util = { version = "0.7", optional = true }
+toml = { version = "0.8", optional = true }
+tracing = { version = "0.1", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"], optional = true }
+url = { version = "2", features = ["serde"], optional = true }
 
 [build-dependencies]
 bindgen = "0.72"
 cc = "1"
+
+[[bin]]
+name = "wattdog"
+path = "src/main.rs"
+required-features = ["app"]
 
 [lints.rust]
 missing_debug_implementations = "warn"
