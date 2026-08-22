@@ -101,15 +101,13 @@ fn main() {
         "cargo:rustc-link-lib=static={}",
         static_library_name(&lib_file)
     );
-    println!("cargo:rustc-link-lib=dylib=stdc++");
-    link_system_library(
-        "bluetooth",
-        host_only_fallbacks(&["/usr/lib64/libbluetooth.so.3.19.16"]),
-    );
-    link_system_library(
-        "dbus-1",
-        host_only_fallbacks(&["/usr/lib64/libdbus-1.so.3.38.3"]),
-    );
+
+    // These are transitive native dependencies of the Thornwave static archive.
+    // Use rustc-link-lib rather than package-local full-path linker arguments so
+    // they propagate when Wattdog's FFI feature is consumed by another crate.
+    for library in ["stdc++", "bluetooth", "dbus-1"] {
+        println!("cargo:rustc-link-lib=dylib={library}");
+    }
 }
 
 fn default_library_file() -> String {
@@ -152,21 +150,4 @@ fn static_library_name(lib_file: &str) -> String {
         .strip_suffix(".a")
         .unwrap_or(without_prefix)
         .to_string()
-}
-
-fn link_system_library(name: &str, fallback_paths: &[&str]) {
-    for path in fallback_paths {
-        if PathBuf::from(path).exists() {
-            println!("cargo:rustc-link-arg={path}");
-            return;
-        }
-    }
-
-    println!("cargo:rustc-link-lib=dylib={name}");
-}
-
-fn host_only_fallbacks(paths: &'static [&'static str]) -> &'static [&'static str] {
-    let host = env::var("HOST").unwrap_or_default();
-    let target = env::var("TARGET").unwrap_or_default();
-    if host == target { paths } else { &[] }
 }
