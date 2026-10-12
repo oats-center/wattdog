@@ -12,12 +12,6 @@ install it.
 | [Container image](#Container-image) | You already run services in Podman or Docker. |
 | [Quadlet](#Quadlet) | You want systemd to manage the container. |
 
-:::caution[Released vs. main]
-The latest release is **v0.1.0**. It supports a single `url` per transition. Action sequences
-(`actions`) and `hold_for` are on `main` and will ship in the next release. Until then, configs
-that use them need a build from `main`. See [Build from source](/docs/reference/building/).
-:::
-
 ## Release binary
 
 Download the tarball for your architecture from the
@@ -68,17 +62,17 @@ need extra groups or a D-Bus policy before BlueZ lets it scan.
 ## Container image
 
 GitHub Actions publishes images for amd64 and arm64 to
-`ghcr.io/oats-center/wattdog`. Tags follow the branch (`:main`) and the release (`:v0.1.0`).
+`ghcr.io/oats-center/wattdog`. Tags follow the branch (`:main`) and the release (`:v0.2.0`).
 
 ```bash
-podman pull ghcr.io/oats-center/wattdog:v0.1.0
+podman pull ghcr.io/oats-center/wattdog:v0.2.0
 podman run --rm \
   --name wattdog \
   -p 127.0.0.1:9107:9107 \
   -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro \
   -v /etc/wattdog/config.toml:/etc/wattdog/config.toml:ro \
   -v /var/lib/wattdog:/var/lib/wattdog:Z \
-  ghcr.io/oats-center/wattdog:v0.1.0
+  ghcr.io/oats-center/wattdog:v0.2.0
 ```
 
 The container uses the host's BlueZ over the system D-Bus socket, so it needs that socket mounted.
@@ -94,7 +88,7 @@ no capabilities, and the same mounts as above.
 sudo install -d /etc/containers/systemd
 sudo curl -fsSL https://raw.githubusercontent.com/oats-center/wattdog/main/packaging/wattdog.container \
   -o /etc/containers/systemd/wattdog.container
-sudo sed -i 's#Image=localhost/wattdog:latest#Image=ghcr.io/oats-center/wattdog:v0.1.0#' \
+sudo sed -i 's#Image=localhost/wattdog:latest#Image=ghcr.io/oats-center/wattdog:v0.2.0#' \
   /etc/containers/systemd/wattdog.container
 sudo systemctl daemon-reload
 sudo systemctl start wattdog.service

@@ -115,7 +115,7 @@ podman run --rm \
   ghcr.io/oats-center/wattdog:main
 ```
 
-Use a release tag, such as `ghcr.io/oats-center/wattdog:v0.1.0`, when you want a pinned version.
+Use a release tag, such as `ghcr.io/oats-center/wattdog:v0.2.0`, when you want a pinned version.
 
 The container mounts `/run/dbus/system_bus_socket` because BlueZ exposes Bluetooth scanning over the host system bus.
 

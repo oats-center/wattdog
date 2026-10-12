@@ -68,19 +68,15 @@ Both are required. Each describes when to move the output to that state, and how
 | `op` | string | `"<"`, `"<="`, `">"`, or `">="`. |
 | `value` | float | Threshold. |
 | `duration` | duration | How long the condition must hold without interruption. `"0s"` acts on the first matching reading. |
-| `hold_for` | duration | Minimum time to stay in this state after its action completes. Default `"0s"`. *(main)* |
+| `hold_for` | duration | Minimum time to stay in this state after its action completes. Default `"0s"`. |
 | `url` | URL | One request using `[http].method`. |
-| `actions` | array | An ordered sequence of steps (below). *(main)* |
+| `actions` | array | An ordered sequence of steps (below). |
 
 Set **exactly one** of `url` or `actions`.
 
 The two transitions must point in opposite directions (one `<`/`<=`, the other `>`/`>=`), and
 their ranges must not overlap. If `off` is `<= 11.2`, `on` can be `>= 11.3`, `> 11.2`, or anything
 higher, but not `>= 11.2`.
-
-:::note[main]
-Fields marked *(main)* aren't in v0.1.0. They'll ship in the next release.
-:::
 
 ### Action steps
 

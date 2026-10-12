@@ -12,11 +12,6 @@ can do what a careful operator would:
 
 It reverses the steps when the battery recovers.
 
-:::caution[Needs a build from main]
-Action sequences and `hold_for` aren't in v0.1.0. Use a [build from
-main](/docs/reference/building/) until the next release.
-:::
-
 ## The config
 
 This replaces the single `url` in each transition of the [quick

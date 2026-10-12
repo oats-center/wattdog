@@ -1,7 +1,7 @@
 <script>
   import { resolve } from '$app/paths'
 
-  // Real output from wattdog built from main (timestamps trimmed). No PowerMon was in range.
+  // Real output from wattdog (timestamps trimmed). No PowerMon was in range.
   const views = [
     {
       id: 'check',
@@ -79,7 +79,7 @@
 {:else if l[0] === 'blank'}
 {:else}<span class="dim">{l[1]}</span>
 {/if}{/each}</pre>
-    <p class="caption">Real output, built from main. No PowerMon in range.</p>
+    <p class="caption">Real output. No PowerMon in range.</p>
   </div>
 </section>
 
