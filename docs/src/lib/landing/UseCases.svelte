@@ -3,10 +3,10 @@
   import { IconifyIcon } from '@sveltepress/theme-default/components'
 
   const cases = [
-    { icon: 'server-bolt', name: 'Battery-backed Pi and PiKVM', to: '/docs/guides/pikvm-shutdown/', body: 'Shut the host down cleanly, confirm it’s off, and cut the relay before the battery is drained. Power it back only after the battery recovers.', tags: ['LiFePO4', 'PiKVM', 'ATX'] },
-    { icon: 'solar-panel', name: 'Solar and off-grid', to: '/docs/getting-started/quickstart/', body: 'Shed lighting, secondary radios, and heaters when the bank sags, and bring them back once the sun has done its work.', tags: ['load shedding', 'hold_for'] },
-    { icon: 'antenna', name: 'Remote sites', to: '/docs/guides/querying-data/', body: 'Alert or fail over when power drifts at an unmanned site. The local Parquet record explains what happened, even if the uplink was down.', tags: ['Prometheus', 'Parquet', 'DuckDB'] },
-    { icon: 'flask', name: 'Test benches', to: '/docs/reference/config/', body: 'Cut power to equipment under test the moment it draws too much current, then restore it on your terms.', tags: ['current_amps', 'power_watts'] },
+    { icon: 'server-bolt', name: 'Battery-backed Pi and PiKVM', to: '/docs/guides/pikvm-shutdown/', body: 'Shut the host down through PiKVM, confirm it is off, and open the load relay before the battery is drained. Restore power after the voltage recovers.', tags: ['LiFePO4', 'PiKVM', 'ATX'] },
+    { icon: 'solar-panel', name: 'Solar and off-grid', to: '/docs/getting-started/quickstart/', body: 'Turn off non-critical loads such as lighting, secondary radios, or heaters when the battery bank voltage drops, and back on after it recovers.', tags: ['load shedding', 'hold_for'] },
+    { icon: 'antenna', name: 'Remote sites', to: '/docs/guides/querying-data/', body: 'Trigger alerts or failover when power readings cross thresholds at an unattended site. Local Parquet files keep the history during uplink outages.', tags: ['Prometheus', 'Parquet', 'DuckDB'] },
+    { icon: 'flask', name: 'Test benches', to: '/docs/reference/config/', body: 'Cut power to equipment under test when its current or power draw exceeds a limit, and restore it by threshold or manually.', tags: ['current_amps', 'power_watts'] },
   ]
 </script>
 

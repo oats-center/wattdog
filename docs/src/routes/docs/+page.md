@@ -11,23 +11,20 @@ configure. It also serves `/healthz` and Prometheus `/metrics`.
 It was built for Raspberry Pi and PiKVM systems, but it runs on any Linux host with Bluetooth Low
 Energy.
 
-> **Watch the battery. Wait until you're sure. Then act, and keep the record.**
+## Features
 
-## What wattdog gives you
-
-- **Passive monitoring.** wattdog reads the advertisements PowerMon devices already broadcast.
-  There is no pairing and no connection to hold open.
-- **Thresholds that wait.** A transition fires only when its condition has held *continuously*
-  for its full duration, so a brief dip doesn't shut anything down.
-- **Ordered actions.** A transition can call one URL, or run a sequence of requests, delays, and
-  JSON polling waits, such as "press the power button, wait for the host to power off, then cut
-  the relay".
-- **A complete record.** Every advertisement becomes a row in an hourly or daily Parquet file
-  you can query with DuckDB, Polars, or Spark.
-- **Observability.** `/healthz` and `/metrics` stay up even if the Bluetooth scanner fails to
-  start, so you can see what went wrong.
-- **Safe to try.** `--check-config` validates a configuration without starting anything, and
-  `--dry-run` runs the whole pipeline without sending any HTTP requests.
+- **Passive Bluetooth scanning.** wattdog reads the advertisements PowerMon devices broadcast. It
+  doesn't pair or hold a connection.
+- **Duration-qualified thresholds.** A transition fires only when its condition has held
+  continuously for its configured duration.
+- **Action sequences.** A transition calls one URL, or runs a sequence of requests, delays, and
+  JSON polling waits.
+- **Parquet history.** Every advertisement is written as a row to an hourly or daily Parquet
+  file.
+- **Health and metrics.** `/healthz` and Prometheus `/metrics`. They stay available if the
+  Bluetooth scanner fails to start.
+- **Validation and dry runs.** `--check-config` validates a configuration and exits. `--dry-run`
+  runs everything without sending HTTP requests.
 
 ## How it fits together
 

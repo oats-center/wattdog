@@ -23,7 +23,7 @@
         ['log', 'INFO', 'metrics HTTP server listening', 'addr=127.0.0.1:9107'],
         ['ok', 'INFO', 'started Thornwave BLE scan', ''],
         ['blank'],
-        ['note', '# Every action is logged, none are sent.'],
+        ['note', '# In dry-run mode, actions are logged but not sent.'],
       ],
     },
     {
@@ -49,11 +49,13 @@
 
   <div class="copy">
     <p class="kicker"><span>PowerMon BLE</span> + <span>thresholds</span> + <span>HTTP</span></p>
-    <h1>A watchdog for <em>every watt.</em></h1>
+    <h1>wattdog</h1>
+    <p class="tagline">A watchdog daemon for Thornwave PowerMon battery monitors.</p>
     <p class="lead">
-      wattdog listens to Thornwave PowerMon battery monitors over Bluetooth, records every
-      reading, and switches your loads over HTTP when the power crosses a line. It acts only once
-      it's sure, and it keeps a record you can query later.
+      It receives PowerMon Bluetooth Low Energy advertisements, writes every reading to local
+      Parquet files, and calls HTTP endpoints when a voltage, current, or power reading stays past
+      a configured threshold. It serves health and Prometheus metrics. It runs on Raspberry Pi,
+      PiKVM, and other Linux hosts with BlueZ.
     </p>
     <div class="actions">
       <a class="btn primary" href={resolve('/docs/getting-started/quickstart/')}>Get started <span aria-hidden="true">→</span></a>
@@ -119,17 +121,18 @@
 
   h1 {
     margin: 0;
-    font-size: clamp(2.6rem, 6vw, 4.4rem);
+    font-size: clamp(2.4rem, 5vw, 3.6rem);
     line-height: 1;
     font-weight: 750;
     letter-spacing: -0.035em;
   }
-  h1 em {
-    font-style: normal;
-    background: linear-gradient(100deg, var(--brand) 10%, var(--warm) 90%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+  .tagline {
+    margin: 0.6rem 0 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 2.2vw, 1.6rem);
+    font-weight: 600;
+    line-height: 1.25;
+    color: color-mix(in srgb, currentColor 80%, transparent);
   }
 
   .lead {

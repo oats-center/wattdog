@@ -1,11 +1,11 @@
 <script>
   // The PiKVM example from the guide: a battery running down, and recovering.
   const steps = [
-    { state: '≤ 11.2 V', note: 'The battery sags under load. The off timer starts, and any reading above 11.2 V resets it.' },
-    { state: 'held 2 min', note: 'The voltage stayed low for two continuous minutes. The off sequence begins and runs to the end.', hold: true },
-    { state: 'host off', note: 'PiKVM presses the ATX power button. wattdog polls the power LED until the host is really off.' },
-    { state: 'relay open', note: 'The load is cut. A 30-minute dwell begins, so a bounce in voltage can’t flip it straight back.', hold: true },
-    { state: '≥ 13.1 V', note: 'The battery has recovered and stays above 13.1 V for ten minutes. The load and the host come back on.', done: true },
+    { state: '≤ 11.2 V', note: 'The voltage falls to the off threshold. The off timer starts; any reading above 11.2 V resets it.' },
+    { state: 'held 2 min', note: 'The condition has held for the off duration. The off sequence starts and runs to completion.', hold: true },
+    { state: 'host off', note: 'Step 1 asks PiKVM to press the ATX power button. Step 2 polls PiKVM until the power LED reads off, or times out.' },
+    { state: 'relay open', note: 'Step 3 opens the load relay. The 30-minute hold_for starts; no thresholds are timed during it.', hold: true },
+    { state: '≥ 13.1 V', note: 'After the hold, the voltage stays at or above 13.1 V for ten minutes. The on sequence restores the load and powers the host on.', done: true },
   ]
 </script>
 

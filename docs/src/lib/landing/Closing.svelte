@@ -5,10 +5,10 @@
 
 <section class="cta">
   <div class="inner">
-    <h2>Protect your first battery in an afternoon.</h2>
-    <p>Install one binary, write one file, check it, dry-run it. Then let wattdog keep watch.</p>
+    <h2>Next steps</h2>
+    <p>The quick start covers installing wattdog, writing a config for a 12 V LiFePO4 battery, validating it, and testing it with <code>--dry-run</code>.</p>
     <div class="actions">
-      <a class="btn primary" href={resolve('/docs/getting-started/quickstart/')}>Start the quick start →</a>
+      <a class="btn primary" href={resolve('/docs/getting-started/quickstart/')}>Quick start →</a>
       <a class="btn" href={resolve('/docs/concepts/thresholds/')}>How thresholds work</a>
     </div>
   </div>

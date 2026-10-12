@@ -1,5 +1,5 @@
 ---
-title: A watchdog for every watt
+title: wattdog
 description: wattdog listens to Thornwave PowerMon battery monitors over Bluetooth, records every reading to Parquet, and switches loads over HTTP when power crosses a threshold.
 layout: false
 ---
@@ -17,15 +17,15 @@ layout: false
 
 <Hero />
 
-<Section eyebrow="Why wattdog" title="Batteries don’t warn you twice" lede="A battery-powered computer that runs flat can corrupt its disk, and nobody may notice until someone drives out to the site. wattdog watches the battery for you, and it only acts on readings it trusts.">
+<Section eyebrow="Features" title="What wattdog does" lede="wattdog reads PowerMon Bluetooth advertisements, keeps every reading, and switches loads over HTTP when a measurement stays past a threshold for a set time.">
 <Bento />
 </Section>
 
-<Section eyebrow="A night on battery" title="Patient on the way down, careful on the way up" lede="This is the PiKVM example from the guides. Every step is a line of config, and every step shows up in the metrics." link={{ to: '/docs/guides/pikvm-shutdown/', label: 'Read the PiKVM guide' }}>
+<Section eyebrow="Example" title="Low-battery shutdown and recovery" lede="The sequence from the PiKVM guide, step by step. Each step corresponds to a config setting and is reported in the metrics." link={{ to: '/docs/guides/pikvm-shutdown/', label: 'PiKVM graceful shutdown guide' }}>
 <Timeline />
 </Section>
 
-<Section split eyebrow="Configuration" title="One file, one block per output" lede="Name the PowerMon, pick a measurement, and set two thresholds with how long each must hold. A transition can be one URL, or a sequence." link={{ to: '/docs/reference/config/', label: 'Configuration reference' }}>
+<Section split eyebrow="Configuration" title="Configuration file" lede="One TOML file. Each [[states]] block controls one output from one PowerMon measurement, with an on and an off threshold and how long each must hold. A transition calls one URL or runs a sequence of steps." link={{ to: '/docs/reference/config/', label: 'Configuration reference' }}>
 <Tabs activeName="config.toml">
 <TabPanel name="config.toml">
 
@@ -89,7 +89,7 @@ url = "https://admin:pw@pikvm/api/gpio/switch?channel=load&state=0"
 </Tabs>
 </Section>
 
-<Section split eyebrow="Keep the record" title="Every reading, ready to query" lede="Metrics show what's happening now. The Parquet files record everything that happened. Point DuckDB at the directory and check your thresholds against last month before you trust them." link={{ to: '/docs/guides/querying-data/', label: 'Query the data' }}>
+<Section split eyebrow="Data" title="Recorded readings" lede="Every advertisement is written as a row to hourly or daily Parquet files under the data directory. Metrics show only the latest values; the Parquet files are the full history and can be queried with DuckDB, Polars, or similar tools." link={{ to: '/docs/guides/querying-data/', label: 'Query the data' }}>
 <Tabs activeName="DuckDB">
 <TabPanel name="DuckDB">
 
@@ -119,7 +119,7 @@ ORDER BY minute, serial;
 </Tabs>
 </Section>
 
-<Section eyebrow="Built for the field" title="Wherever a battery keeps something alive" lede="The same daemon and config format, whether it guards one Raspberry Pi or a cabinet at a remote site.">
+<Section eyebrow="Use cases" title="Typical deployments" lede="The same daemon and config format are used in each case.">
 <UseCases />
 </Section>
 
