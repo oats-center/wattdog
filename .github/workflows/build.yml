@@ -15,6 +15,9 @@ env:
   CARGO_TERM_COLOR: always
   THORNWAVE_SDK_DIR: vendor/libpowermon_bin
   THORNWAVE_SDK_REPO: https://git.thornwave.com/git/thornwave/libpowermon_bin.git
+  # Pinned to SDK v1.20. v1.21 builds its x86_64 library with GCC 16, which
+  # doesn't link against Ubuntu 24.04's libstdc++.
+  THORNWAVE_SDK_REF: 0924a36d14af523d48c92295886f8f99e4f000e1
 
 jobs:
   shared-ffi:
@@ -29,7 +32,8 @@ jobs:
       - name: Restore Thornwave SDK
         run: |
           mkdir -p vendor
-          git clone --depth 1 "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          git clone --quiet "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          git -C vendor/libpowermon_bin checkout --quiet "$THORNWAVE_SDK_REF"
           test -f vendor/libpowermon_bin/inc/powermon.h
 
       - name: Install native build libraries
@@ -68,7 +72,8 @@ jobs:
       - name: Restore Thornwave SDK
         run: |
           mkdir -p vendor
-          git clone --depth 1 "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          git clone --quiet "$THORNWAVE_SDK_REPO" vendor/libpowermon_bin
+          git -C vendor/libpowermon_bin checkout --quiet "$THORNWAVE_SDK_REF"
           test -f vendor/libpowermon_bin/inc/powermon.h
 
       - name: Install native build libraries

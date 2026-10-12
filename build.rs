@@ -1,4 +1,8 @@
-use std::{env, fs, path::PathBuf, process::Command};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 const VENDORED_SDK_DIR: &str = "vendor/libpowermon_bin";
 
@@ -34,7 +38,8 @@ fn main() {
         );
     }
 
-    let lib_file = env::var("THORNWAVE_LIB_FILE").unwrap_or_else(|_| default_library_file());
+    let lib_file =
+        env::var("THORNWAVE_LIB_FILE").unwrap_or_else(|_| default_library_file(&sdk_dir));
     let lib_path = sdk_dir.join(&lib_file);
     assert!(
         lib_path.exists(),
@@ -110,11 +115,20 @@ fn main() {
     }
 }
 
-fn default_library_file() -> String {
-    match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
-        Ok("aarch64") => "powermon_lib_rpi64_pic.a".to_string(),
-        _ => "powermon_lib_pic.a".to_string(),
-    }
+/// Picks the SDK's PIC static library for the target architecture.
+///
+/// SDK 1.21 renamed the aarch64 library from `powermon_lib_rpi64_pic.a` to
+/// `powermon_lib_arm64_pic.a`, so accept whichever this checkout has.
+fn default_library_file(sdk_dir: &Path) -> String {
+    let candidates: &[&str] = match env::var("CARGO_CFG_TARGET_ARCH").as_deref() {
+        Ok("aarch64") => &["powermon_lib_rpi64_pic.a", "powermon_lib_arm64_pic.a"],
+        _ => &["powermon_lib_pic.a"],
+    };
+    candidates
+        .iter()
+        .find(|name| sdk_dir.join(name).exists())
+        .unwrap_or(&candidates[0])
+        .to_string()
 }
 
 fn compiler_builtin_include_dir() -> Option<String> {

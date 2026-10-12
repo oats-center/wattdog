@@ -28,7 +28,7 @@ The binary is `target/release/wattdog`.
 | Target | Default `THORNWAVE_LIB_FILE` |
 |---|---|
 | x86_64 | `powermon_lib_pic.a` |
-| aarch64 | `powermon_lib_rpi64_pic.a` |
+| aarch64 | `powermon_lib_rpi64_pic.a`, or `powermon_lib_arm64_pic.a` (SDK ≥ 1.21) |
 
 To use a different checkout or file:
 
@@ -38,11 +38,16 @@ export THORNWAVE_LIB_FILE=powermon_lib_arm64_pic.a
 cargo build --release
 ```
 
-:::caution[SDK update, June 2026]
-The current SDK ships `powermon_lib_arm64_pic.a` instead of `powermon_lib_rpi64_pic.a`, so
-aarch64 builds against a fresh clone need `THORNWAVE_LIB_FILE=powermon_lib_arm64_pic.a`. Its
-x86_64 library is also built with a newer GCC: linking fails on Ubuntu 24.04's libstdc++ (missing
-`std::format` symbols) but works with GCC 16 (Fedora 44).
+:::caution[SDK versions]
+Release builds use SDK **v1.20** (commit `0924a36`), pinned as `THORNWAVE_SDK_REF` in
+`.github/workflows/build.yml`. SDK v1.21 renamed the aarch64 library to `powermon_lib_arm64_pic.a`.
+`build.rs` accepts either name. v1.21 also built its x86_64 library with GCC 16, so it doesn't
+link against older libstdc++ (Ubuntu 24.04 fails with missing `std::format` symbols), and the
+binary then needs GCC 16's libstdc++ at runtime. To match the release builds, check out v1.20:
+
+```bash
+git -C vendor/libpowermon_bin checkout 0924a36
+```
 :::
 
 ## Cross-compile for Raspberry Pi (64-bit)

@@ -318,6 +318,7 @@ The Thornwave SDK is a mandatory build-time dependency. Clone it into the ignore
 ```bash
 mkdir -p vendor
 git clone https://git.thornwave.com/git/thornwave/libpowermon_bin.git vendor/libpowermon_bin
+git -C vendor/libpowermon_bin checkout 0924a36   # SDK v1.20, as used by release builds
 cargo build --release
 ```
 
