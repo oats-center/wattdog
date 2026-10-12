@@ -9,6 +9,7 @@
 [![GitHub Release](https://img.shields.io/github/v/release/oats-center/wattdog?logo=github)](https://github.com/oats-center/wattdog/releases)
 [![Container Image](https://img.shields.io/badge/ghcr.io-oats--center%2Fwattdog-blue?logo=podman)](https://github.com/oats-center/wattdog/pkgs/container/wattdog)
 [![Rust](https://img.shields.io/badge/rust-2024-orange?logo=rust)](https://www.rust-lang.org/)
+[![Docs](https://img.shields.io/badge/docs-oats--center.github.io%2Fwattdog-b28d45)](https://oats-center.github.io/wattdog/)
 
 A watchdog daemon for [Thornwave Labs PowerMon](https://www.thornwave.com/) devices.
 
@@ -129,7 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/oats-center/wattdog/main/packaging/
 sed -i 's#Image=localhost/wattdog:latest#Image=ghcr.io/oats-center/wattdog:main#' \
   /etc/containers/systemd/wattdog.container
 systemctl daemon-reload
-systemctl enable --now wattdog.service
+systemctl start wattdog.service
 ```
 
 Change `Image=` to a release tag when you want a pinned version.
@@ -143,7 +144,9 @@ Change `Image=` to a release tag when you want a pinned version.
 Create the config directory and drop in the example. This example is tuned for a Raspberry Pi or PiKVM running on a 4S "12V" LiFePO4 battery with an HTTP-controlled relay.
 
 ```bash
+useradd --system --no-create-home --shell /usr/sbin/nologin wattdog
 install -o wattdog -g wattdog -m 0750 -d /etc/wattdog
+install -o wattdog -g wattdog -m 0755 -d /var/lib/wattdog
 ```
 
 Create `/etc/wattdog/config.toml`:
@@ -215,7 +218,8 @@ url = "http://127.0.0.1:8080/relay/off"
 Install it with restricted permissions because action URLs may contain tokens:
 
 ```bash
-install -o wattdog -g wattdog -m 0600 /etc/wattdog/config.toml /etc/wattdog/config.toml
+chown wattdog:wattdog /etc/wattdog/config.toml
+chmod 0600 /etc/wattdog/config.toml
 ```
 
 ### Validate
@@ -268,7 +272,7 @@ RUST_LOG=debug wattdog --config /etc/wattdog/config.toml --dry-run
 | `[[states]]` | One per logical output. Defines what to watch and which serial to watch. |
 | `[states.on]` / `[states.off]` | Threshold, duration, dwell, and single URL or ordered action sequence. |
 
-For the full reference, including how the state machine handles continuous duration, stale data, retry backoff, and ambiguous states, see [`docs/config.md`](docs/config.md).
+For the full reference, see the [configuration reference](https://oats-center.github.io/wattdog/docs/reference/config/). For how the state machine handles continuous duration, stale data, dwell, and retries, see [How thresholds work](https://oats-center.github.io/wattdog/docs/concepts/thresholds/).
 
 ---
 
@@ -293,7 +297,7 @@ Important metrics include:
 - `wattdog_action_wait_timeouts_total{name="...",target="on|off"}` — Polling deadlines reached
 - `wattdog_http_attempts_total{name="...",target="on\|off",result="success\|failure"}` — Action success/failure counts
 
-See [`docs/reference.md`](docs/reference.md) for the complete metrics list, Parquet layout, DuckDB query examples, and retention guidance.
+See the [metrics reference](https://oats-center.github.io/wattdog/docs/reference/metrics/), the [Parquet layout](https://oats-center.github.io/wattdog/docs/reference/parquet/), and [Query the data](https://oats-center.github.io/wattdog/docs/guides/querying-data/) for DuckDB examples and retention.
 
 ### Parquet Files
 
@@ -324,14 +328,18 @@ cargo install cross --git https://github.com/cross-rs/cross
 cross build --release --target aarch64-unknown-linux-gnu
 ```
 
-See [`docs/reference.md`](docs/reference.md) for full build details, including custom SDK paths and local container builds.
+See [Build from source](https://oats-center.github.io/wattdog/docs/reference/building/) for custom SDK paths and local container builds.
 
 ---
 
 ## More Details
 
-- [`docs/config.md`](docs/config.md) — Full configuration reference and state machine behavior
-- [`docs/reference.md`](docs/reference.md) — Build notes, container details, metrics reference, Parquet layout, DuckDB queries, retention
+The full documentation is at **[oats-center.github.io/wattdog](https://oats-center.github.io/wattdog/)**:
+
+- [Install](https://oats-center.github.io/wattdog/docs/getting-started/install/) and [Quick start](https://oats-center.github.io/wattdog/docs/getting-started/quickstart/)
+- [PiKVM graceful shutdown](https://oats-center.github.io/wattdog/docs/guides/pikvm-shutdown/)
+- [How thresholds work](https://oats-center.github.io/wattdog/docs/concepts/thresholds/) and [Design](https://oats-center.github.io/wattdog/docs/concepts/design/)
+- [Configuration](https://oats-center.github.io/wattdog/docs/reference/config/), [Metrics](https://oats-center.github.io/wattdog/docs/reference/metrics/), [Parquet layout](https://oats-center.github.io/wattdog/docs/reference/parquet/), [Build from source](https://oats-center.github.io/wattdog/docs/reference/building/)
 
 ---
 

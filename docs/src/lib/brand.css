@@ -1,0 +1,34 @@
+/* ─── wattdog brand ───
+ * Signature: charcoal. Warm metal: brass. Motif: a pulse waveform over field rows.
+ * See src/lib/family/README.md for the family rules. */
+
+:root {
+  --brand: #323536;
+  --brand-deep: #1f2223;
+  --on-brand: #fff;
+  --warm: #b28d45;
+  --warm-deep: #8a6a2c;
+  --warm-ink: #1f1806;
+  --ink: #1c1f20;
+  --on-ink: #f1efe9;
+  --on-ink-muted: #b9b5aa;
+  --console-bg: #121415;
+  --console-bar: #1a1d1e;
+  --console-line: #2c3032;
+  --console-text: #d6d3ca;
+  --console-dim: #8a877e;
+  --paper-dark: #111314;
+}
+
+/* Charcoal disappears on a dark page, so the signature turns to warm bone there */
+html.dark {
+  --brand: #dcd7ca;
+  --brand-deep: #f1efe9;
+  --on-brand: #111314;
+}
+
+/* The pulse waveform, reused by the hero and closing panels */
+.motif-pulse {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='64'%3E%3Cpath d='M0 40h96l8-16 10 34 10-46 9 28h107' fill='none' stroke='%23b28d45' stroke-width='1.5' stroke-linejoin='round' opacity='.35'/%3E%3C/svg%3E");
+  background-repeat: repeat-x;
+}

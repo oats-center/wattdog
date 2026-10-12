@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .ink { fill: #323536; }
+    .gap { stroke: #fbfaf5; } .eye { fill: #fbfaf5; }
+    @media (prefers-color-scheme: dark) { .ink { fill: #e4e1d8; } .gap { stroke: #111314; } .eye { fill: #111314; } }
+  </style>
+  <path class="ink" d="M6 29 L9 13 L11 2.5 L15.5 9 L18.5 4 L19.6 10 Q21.5 10.6 24 12 L29.4 14.8 Q30.6 16.4 29 17.4 L23.5 18 Q21.4 18.6 20 21 L22.5 29 Z"/>
+  <path class="gap" fill="#b28d45" stroke-width="1.6" stroke-linejoin="round" paint-order="stroke" d="M15 12.5 L11 20.5 L14.5 20.5 L12 29 L19 18.5 L15.5 18.5 L18 12.5 Z"/>
+  <path fill="#b28d45" d="M12.4 6.2 L14.6 9.6 L13 11.6 Z"/>
+  <circle class="eye" cx="22" cy="13" r="0.75"/>
+  <path d="M23 25 h3 l1-2 l1.4 4 l1-2 h1.6" fill="none" stroke="#b28d45" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

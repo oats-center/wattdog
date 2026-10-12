@@ -1,0 +1,78 @@
+[
+  {
+    "title": "Start here",
+    "collapsible": false,
+    "items": [
+      {
+        "title": "Overview",
+        "to": "/docs/"
+      },
+      {
+        "title": "Install",
+        "to": "/docs/getting-started/install/"
+      },
+      {
+        "title": "Quick start",
+        "to": "/docs/getting-started/quickstart/"
+      }
+    ]
+  },
+  {
+    "title": "Guides",
+    "collapsible": false,
+    "items": [
+      {
+        "title": "PiKVM graceful shutdown",
+        "to": "/docs/guides/pikvm-shutdown/"
+      },
+      {
+        "title": "Query the data",
+        "to": "/docs/guides/querying-data/"
+      },
+      {
+        "title": "Run in a container",
+        "to": "/docs/guides/containers/"
+      }
+    ]
+  },
+  {
+    "title": "Concepts",
+    "collapsible": false,
+    "items": [
+      {
+        "title": "How thresholds work",
+        "to": "/docs/concepts/thresholds/"
+      },
+      {
+        "title": "Design",
+        "to": "/docs/concepts/design/"
+      }
+    ]
+  },
+  {
+    "title": "Reference",
+    "collapsible": false,
+    "items": [
+      {
+        "title": "Configuration",
+        "to": "/docs/reference/config/"
+      },
+      {
+        "title": "Command line",
+        "to": "/docs/reference/cli/"
+      },
+      {
+        "title": "Metrics",
+        "to": "/docs/reference/metrics/"
+      },
+      {
+        "title": "Parquet layout",
+        "to": "/docs/reference/parquet/"
+      },
+      {
+        "title": "Build from source",
+        "to": "/docs/reference/building/"
+      }
+    ]
+  }
+]
